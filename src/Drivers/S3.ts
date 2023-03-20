@@ -193,7 +193,7 @@ export class S3Driver implements S3DriverContract {
        *
        * There is an open issue on the same https://github.com/aws/aws-sdk-js-v3/issues/3064
        */
-      return response.Body as Promise<Readable>
+      return response.Body as unknown as Promise<Readable>
     } catch (error) {
       throw CannotReadFileException.invoke(location, error)
     }
@@ -385,6 +385,30 @@ export class S3Driver implements S3DriverContract {
           Bucket: this.config.bucket,
           ...this.transformWriteOptions(options),
         })
+      )
+    } catch (error) {
+      throw CannotWriteFileException.invoke(location, error)
+    }
+  }
+
+  /**
+   * Returns the signed url for a upload path
+   */
+  public async putSignedUrl(
+    location: string,
+    options?: WriteOptions & { expiresIn?: string | number }
+  ): Promise<string> {
+    try {
+      return await getSignedUrl(
+        this.adapter,
+        new PutObjectCommand({
+          Key: location,
+          Bucket: this.config.bucket,
+          ...this.transformWriteOptions(options),
+        }),
+        {
+          expiresIn: string.toMs(options?.expiresIn || '15min') / 1000,
+        }
       )
     } catch (error) {
       throw CannotWriteFileException.invoke(location, error)

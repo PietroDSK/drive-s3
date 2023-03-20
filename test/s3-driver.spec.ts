@@ -9,6 +9,7 @@
 
 import 'reflect-metadata'
 
+import nodeRequest from 'request'
 import got from 'got'
 import { URL } from 'url'
 import { join } from 'path'
@@ -1272,5 +1273,45 @@ test.group('S3 driver | getSignedUrl', (group) => {
     const expiresResult = url.searchParams.get('X-Amz-Expires')
 
     assert.equal(expiresResult, '120')
+  }).timeout(6000)
+})
+
+test.group('S3 driver | putSignedUrl', (group) => {
+  group.each.teardown(async () => {
+    await fs.cleanup()
+  })
+
+  test('put signed url to a file in private disk', async ({ assert }) => {
+    assert.plan(1)
+
+    const config = {
+      key: AWS_KEY,
+      secret: AWS_SECRET,
+      bucket: AWS_BUCKET,
+      endpoint: AWS_ENDPOINT,
+      region: AWS_REGION,
+      driver: 's3' as const,
+      visibility: 'private' as const,
+    }
+    const fileName = `${string.generateRandom(10)}.txt`
+
+    const driver = new S3Driver(config, logger)
+
+    const url = await driver.putSignedUrl(fileName)
+
+    await fs.add('foo.txt', '{ "hello": "world" }')
+    const stream = fs.fsExtra.createReadStream(join(fs.basePath, 'foo.txt'))
+
+    await nodeRequest.put({
+      url,
+      formData: {
+        my_field: 'file',
+        my_file: stream,
+      },
+    })
+
+    assert.isTrue(await driver.exists(fileName))
+
+    await driver.delete(fileName)
   }).timeout(6000)
 })
